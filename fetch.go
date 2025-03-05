@@ -11,69 +11,15 @@ import (
 	fetchAPI "github.com/segmentio/kafka-go/protocol/fetch"
 )
 
-type FetchRequestMulti struct {
-	Addr net.Addr
-
-	MinBytes int32
-	MaxBytes int32
-	MaxWait  time.Duration
-
-	IsolationLevel IsolationLevel
-
-	Topics []FetchRequestTopic
-}
-
-type FetchRequestTopic struct {
-	Topic string
-
-	Partitions []FetchRequestPartition
-}
-
-type FetchRequestPartition struct {
-	Partition int
-	Offset    int64
-	MaxBytes  int32
-}
-
-type FetchResponsePartition struct {
-	Partition        int
-	HighWatermark    int64
-	LastStableOffset int64
-	LogStartOffset   int64
-	Error            error
-	Records          RecordReader
-}
-
-type FetchResponseTopic struct {
-	Topic string
-
-	Partitions []FetchResponsePartition
-}
-type FetchResponseMulti struct {
-	// The amount of time that the broker throttled the request.
-	Throttle time.Duration
-	Error    error
-
-	Topics []FetchResponseTopic
-}
-
 // FetchRequest represents a request sent to a kafka broker to retrieve records
-// from a topic partition.
+// from one or more partitions of one or more topics.
 type FetchRequest struct {
 	// Address of the kafka broker to send the request to.
 	Addr net.Addr
 
-	// Topic, partition, and offset to retrieve records from. The offset may be
-	// one of the special FirstOffset or LastOffset constants, in which case the
-	// request will automatically discover the first or last offset of the
-	// partition and submit the request for these.
-	Topic     string
-	Partition int
-	Offset    int64
-
 	// Size and time limits of the response returned by the broker.
-	MinBytes int64
-	MaxBytes int64
+	MinBytes int32
+	MaxBytes int32
 	MaxWait  time.Duration
 
 	// The isolation level for the request.
@@ -83,6 +29,31 @@ type FetchRequest struct {
 	// This field requires the kafka broker to support the Fetch API in version
 	// 4 or above (otherwise the value is ignored).
 	IsolationLevel IsolationLevel
+
+	// Topics, partitions, and offsets to retrieve records from. The offset may be
+	// one of the special FirstOffset or LastOffset constants, in which case the
+	// request will automatically discover the first or last offset of the
+	// partition and submit the request for these.
+	Topics []FetchRequestTopic
+}
+
+// FetchRequestTopic represents a topic and partitions that should have records retrieved.
+type FetchRequestTopic struct {
+	// Topic to retrieve records from.
+	Topic string
+
+	// Partitions to retrieve records from.
+	Partitions []FetchRequestPartition
+}
+
+// FetchRequestPartition represents a partition to retrieve records from.
+type FetchRequestPartition struct {
+	// Partition to retrieve record from.
+	Partition int
+	// Offset to retrieve.
+	Offset int64
+	// Size limit on the response for this partition.
+	MaxBytes int32
 }
 
 // FetchResponse represents a response from a kafka broker to a fetch request.
@@ -90,12 +61,32 @@ type FetchResponse struct {
 	// The amount of time that the broker throttled the request.
 	Throttle time.Duration
 
-	// The topic and partition that the response came for (will match the values
-	// in the request).
-	Topic     string
+	// An error that may have occurred while attempting to fetch the records.
+	//
+	// The error contains both the kafka error code, and an error message
+	// returned by the kafka broker. Programs may use the standard errors.Is
+	// function to test the error against kafka error codes.
+	Error error
+
+	// Metadata and records returned by the broker, organized on a per-topic basis.
+	Topics []FetchResponseTopic
+}
+
+// FetchResponseTopic represents metadata nad records returned by the broker for a single topic.
+type FetchResponseTopic struct {
+	// The topic that the response came from.
+	Topic string
+
+	// The partitions that the response came from.
+	Partitions []FetchResponsePartition
+}
+
+// FetchResponsePartition represents partition metadata and records returned by the broker.
+type FetchResponsePartition struct {
+	// Partition the response is for.
 	Partition int
 
-	// Information about the topic partition layout returned from the broker.
+	// Information about the topic-partition layout returned from the broker.
 	//
 	// LastStableOffset requires the kafka broker to support the Fetch API in
 	// version 4 or above (otherwise the value is zero).
@@ -132,104 +123,6 @@ type FetchResponse struct {
 // If the broker returned an invalid response with no partitions, an error
 // wrapping ErrNoPartitions is returned.
 func (c *Client) Fetch(ctx context.Context, req *FetchRequest) (*FetchResponse, error) {
-	timeout := c.timeout(ctx, math.MaxInt64)
-	maxWait := req.maxWait()
-
-	if maxWait < timeout {
-		timeout = maxWait
-	}
-
-	offset := req.Offset
-	switch offset {
-	case FirstOffset, LastOffset:
-		topic, partition := req.Topic, req.Partition
-
-		r, err := c.ListOffsets(ctx, &ListOffsetsRequest{
-			Addr: req.Addr,
-			Topics: map[string][]OffsetRequest{
-				topic: {{
-					Partition: partition,
-					Timestamp: offset,
-				}},
-			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", err)
-		}
-
-		for _, p := range r.Topics[topic] {
-			if p.Partition == partition {
-				if p.Error != nil {
-					return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", p.Error)
-				}
-				switch offset {
-				case FirstOffset:
-					offset = p.FirstOffset
-				case LastOffset:
-					offset = p.LastOffset
-				}
-				break
-			}
-		}
-	}
-
-	m, err := c.roundTrip(ctx, req.Addr, &fetchAPI.Request{
-		ReplicaID:      -1,
-		MaxWaitTime:    milliseconds(timeout),
-		MinBytes:       int32(req.MinBytes),
-		MaxBytes:       int32(req.MaxBytes),
-		IsolationLevel: int8(req.IsolationLevel),
-		SessionID:      -1,
-		SessionEpoch:   -1,
-		Topics: []fetchAPI.RequestTopic{{
-			Topic: req.Topic,
-			Partitions: []fetchAPI.RequestPartition{{
-				Partition:          int32(req.Partition),
-				CurrentLeaderEpoch: -1,
-				FetchOffset:        offset,
-				LogStartOffset:     -1,
-				PartitionMaxBytes:  int32(req.MaxBytes),
-			}},
-		}},
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", err)
-	}
-
-	res := m.(*fetchAPI.Response)
-	if len(res.Topics) == 0 {
-		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", protocol.ErrNoTopic)
-	}
-	topic := &res.Topics[0]
-	if len(topic.Partitions) == 0 {
-		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", protocol.ErrNoPartition)
-	}
-	partition := &topic.Partitions[0]
-
-	ret := &FetchResponse{
-		Throttle:         makeDuration(res.ThrottleTimeMs),
-		Topic:            topic.Topic,
-		Partition:        int(partition.Partition),
-		Error:            makeError(res.ErrorCode, ""),
-		HighWatermark:    partition.HighWatermark,
-		LastStableOffset: partition.LastStableOffset,
-		LogStartOffset:   partition.LogStartOffset,
-		Records:          partition.RecordSet.Records,
-	}
-
-	if partition.ErrorCode != 0 {
-		ret.Error = makeError(partition.ErrorCode, "")
-	}
-
-	if ret.Records == nil {
-		ret.Records = NewRecordReader()
-	}
-
-	return ret, nil
-}
-
-func (c *Client) FetchMulti(ctx context.Context, req *FetchRequestMulti) (*FetchResponseMulti, error) {
 	timeout := c.timeout(ctx, math.MaxInt64)
 	maxWait := defaultMaxWait
 
@@ -368,7 +261,7 @@ func (c *Client) FetchMulti(ctx context.Context, req *FetchRequestMulti) (*Fetch
 
 	}
 
-	return &FetchResponseMulti{
+	return &FetchResponse{
 		Throttle: makeDuration(res.ThrottleTimeMs),
 		Error:    makeError(res.ErrorCode, ""),
 		Topics:   topics,

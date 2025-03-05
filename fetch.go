@@ -11,6 +11,40 @@ import (
 	fetchAPI "github.com/segmentio/kafka-go/protocol/fetch"
 )
 
+type FetchRequestMulti struct {
+	Addr net.Addr
+
+	TopicPartitionOffset map[string]map[int]int64
+
+	MinBytes int64
+	MaxBytes int64
+	MaxWait  time.Duration
+
+	IsolationLevel IsolationLevel
+}
+
+type FetchResponsePartition struct {
+	Partition        int
+	HighWatermark    int64
+	LastStableOffset int64
+	LogStartOffset   int64
+	Error            error
+	Records          RecordReader
+}
+
+type FetchResponseTopic struct {
+	Topic string
+
+	Partitions []FetchResponsePartition
+}
+type FetchResponseMulti struct {
+	// The amount of time that the broker throttled the request.
+	Throttle time.Duration
+	Error    error
+
+	Topics []FetchResponseTopic
+}
+
 // FetchRequest represents a request sent to a kafka broker to retrieve records
 // from a topic partition.
 type FetchRequest struct {
@@ -181,6 +215,144 @@ func (c *Client) Fetch(ctx context.Context, req *FetchRequest) (*FetchResponse, 
 	}
 
 	return ret, nil
+}
+
+func (c *Client) FetchMulti(ctx context.Context, req *FetchRequestMulti) (*FetchResponseMulti, error) {
+	timeout := c.timeout(ctx, math.MaxInt64)
+	maxWait := defaultMaxWait
+
+	if req.MaxWait > 0 {
+		maxWait = req.MaxWait
+	}
+
+	if maxWait < timeout {
+		timeout = maxWait
+	}
+
+	needOffsetResolution := make(map[string][]OffsetRequest)
+	resolvedOffsets := make(map[string]map[int]PartitionOffsets)
+
+	for topic, partitionOffsets := range req.TopicPartitionOffset {
+		for partition, offset := range partitionOffsets {
+			if offset == FirstOffset || offset == LastOffset {
+				if _, ok := needOffsetResolution[topic]; !ok {
+					needOffsetResolution[topic] = make([]OffsetRequest, 0, len(partitionOffsets))
+				}
+				needOffsetResolution[topic] = append(needOffsetResolution[topic], OffsetRequest{
+					Partition: partition,
+					Timestamp: offset,
+				})
+			}
+		}
+	}
+
+	r, err := c.ListOffsets(ctx, &ListOffsetsRequest{
+		Addr:           req.Addr,
+		Topics:         map[string][]OffsetRequest{},
+		IsolationLevel: req.IsolationLevel,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", err)
+	}
+
+	for topic, partitionOffsets := range r.Topics {
+		table := make(map[int]PartitionOffsets)
+
+		for _, offsets := range partitionOffsets {
+			table[offsets.Partition] = offsets
+		}
+
+		resolvedOffsets[topic] = table
+	}
+
+	requestTopics := []fetchAPI.RequestTopic{}
+
+	for topic, partitionOffsets := range req.TopicPartitionOffset {
+		requestPartitions := []fetchAPI.RequestPartition{}
+
+		for partition, offset := range partitionOffsets {
+			switch offset {
+			case FirstOffset:
+				offset = resolvedOffsets[topic][partition].FirstOffset
+			case LastOffset:
+				offset = resolvedOffsets[topic][partition].LastOffset
+			}
+
+			requestPartitions = append(requestPartitions, fetchAPI.RequestPartition{
+				Partition:          int32(partition),
+				CurrentLeaderEpoch: -1,
+				FetchOffset:        offset,
+				LogStartOffset:     -1,
+				PartitionMaxBytes:  int32(req.MaxBytes),
+			})
+		}
+
+		requestTopics = append(requestTopics, fetchAPI.RequestTopic{
+			Topic:      topic,
+			Partitions: requestPartitions,
+		})
+	}
+
+	m, err := c.roundTrip(ctx, req.Addr, &fetchAPI.Request{
+		ReplicaID:      -1,
+		MaxWaitTime:    milliseconds(timeout),
+		MinBytes:       int32(req.MinBytes),
+		MaxBytes:       int32(req.MaxBytes),
+		IsolationLevel: int8(req.IsolationLevel),
+		SessionID:      -1,
+		SessionEpoch:   -1,
+		Topics:         requestTopics,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", err)
+	}
+
+	res := m.(*fetchAPI.Response)
+
+	if len(res.Topics) == 0 {
+		return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", protocol.ErrNoTopic)
+	}
+
+	topics := make([]FetchResponseTopic, 0, len(res.Topics))
+
+	for _, topic := range res.Topics {
+		if len(topic.Partitions) == 0 {
+			return nil, fmt.Errorf("kafka.(*Client).Fetch: %w", protocol.ErrNoPartition)
+		}
+
+		partitions := make([]FetchResponsePartition, 0, len(topic.Partitions))
+
+		for _, partition := range topic.Partitions {
+			records := partition.RecordSet.Records
+
+			if records == nil {
+				records = NewRecordReader()
+			}
+
+			partitions = append(partitions, FetchResponsePartition{
+				Partition:        int(partition.Partition),
+				HighWatermark:    partition.HighWatermark,
+				LastStableOffset: partition.LastStableOffset,
+				LogStartOffset:   partition.LogStartOffset,
+				Error:            makeError(partition.ErrorCode, ""),
+				Records:          records,
+			})
+		}
+
+		topics = append(topics, FetchResponseTopic{
+			Topic:      topic.Topic,
+			Partitions: partitions,
+		})
+
+	}
+
+	return &FetchResponseMulti{
+		Throttle: makeDuration(res.ThrottleTimeMs),
+		Error:    makeError(res.ErrorCode, ""),
+		Topics:   topics,
+	}, nil
 }
 
 func (req *FetchRequest) maxWait() time.Duration {

@@ -1055,7 +1055,7 @@ func (cg *ConsumerGroup) makeMemberProtocolMetadata(in []joinGroupResponseMember
 	for _, item := range in {
 		metadata := groupMetadata{}
 		reader := bufio.NewReader(bytes.NewReader(item.MemberMetadata))
-		if remain, err := (&metadata).readFrom(reader, len(item.MemberMetadata)); err != nil || remain != 0 {
+		if _, err := (&metadata).readFrom(reader, len(item.MemberMetadata)); err != nil {
 			return nil, fmt.Errorf("unable to read metadata for member, %v: %w", item.MemberID, err)
 		}
 

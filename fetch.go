@@ -14,13 +14,25 @@ import (
 type FetchRequestMulti struct {
 	Addr net.Addr
 
-	TopicPartitionOffset map[string]map[int]int64
-
-	MinBytes int64
-	MaxBytes int64
+	MinBytes int32
+	MaxBytes int32
 	MaxWait  time.Duration
 
 	IsolationLevel IsolationLevel
+
+	Topics []FetchRequestTopic
+}
+
+type FetchRequestTopic struct {
+	Topic string
+
+	Partitions []FetchRequestPartition
+}
+
+type FetchRequestPartition struct {
+	Partition int
+	Offset    int64
+	MaxBytes  int32
 }
 
 type FetchResponsePartition struct {
@@ -232,15 +244,15 @@ func (c *Client) FetchMulti(ctx context.Context, req *FetchRequestMulti) (*Fetch
 	needOffsetResolution := make(map[string][]OffsetRequest)
 	resolvedOffsets := make(map[string]map[int]PartitionOffsets)
 
-	for topic, partitionOffsets := range req.TopicPartitionOffset {
-		for partition, offset := range partitionOffsets {
-			if offset == FirstOffset || offset == LastOffset {
-				if _, ok := needOffsetResolution[topic]; !ok {
-					needOffsetResolution[topic] = make([]OffsetRequest, 0, len(partitionOffsets))
+	for _, topic := range req.Topics {
+		for _, partition := range topic.Partitions {
+			if partition.Offset == FirstOffset || partition.Offset == LastOffset {
+				if _, ok := needOffsetResolution[topic.Topic]; !ok {
+					needOffsetResolution[topic.Topic] = make([]OffsetRequest, 0, len(topic.Partitions))
 				}
-				needOffsetResolution[topic] = append(needOffsetResolution[topic], OffsetRequest{
-					Partition: partition,
-					Timestamp: offset,
+				needOffsetResolution[topic.Topic] = append(needOffsetResolution[topic.Topic], OffsetRequest{
+					Partition: partition.Partition,
+					Timestamp: partition.Offset,
 				})
 			}
 		}
@@ -268,28 +280,36 @@ func (c *Client) FetchMulti(ctx context.Context, req *FetchRequestMulti) (*Fetch
 
 	requestTopics := []fetchAPI.RequestTopic{}
 
-	for topic, partitionOffsets := range req.TopicPartitionOffset {
+	for _, topic := range req.Topics {
 		requestPartitions := []fetchAPI.RequestPartition{}
 
-		for partition, offset := range partitionOffsets {
+		for _, partition := range topic.Partitions {
+			offset := partition.Offset
+
 			switch offset {
 			case FirstOffset:
-				offset = resolvedOffsets[topic][partition].FirstOffset
+				offset = resolvedOffsets[topic.Topic][partition.Partition].FirstOffset
 			case LastOffset:
-				offset = resolvedOffsets[topic][partition].LastOffset
+				offset = resolvedOffsets[topic.Topic][partition.Partition].LastOffset
+			}
+
+			maxBytes := req.MaxBytes
+
+			if partition.MaxBytes > 0 {
+				maxBytes = partition.MaxBytes
 			}
 
 			requestPartitions = append(requestPartitions, fetchAPI.RequestPartition{
-				Partition:          int32(partition),
+				Partition:          int32(partition.Partition),
 				CurrentLeaderEpoch: -1,
 				FetchOffset:        offset,
 				LogStartOffset:     -1,
-				PartitionMaxBytes:  int32(req.MaxBytes),
+				PartitionMaxBytes:  maxBytes,
 			})
 		}
 
 		requestTopics = append(requestTopics, fetchAPI.RequestTopic{
-			Topic:      topic,
+			Topic:      topic.Topic,
 			Partitions: requestPartitions,
 		})
 	}

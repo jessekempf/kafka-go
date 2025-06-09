@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/describeuserscramcredentials"
+	"github.com/jessekempf/kafka-go/protocol/describeuserscramcredentials"
 )
 
 // DescribeUserScramCredentialsRequest represents a request sent to a kafka broker to

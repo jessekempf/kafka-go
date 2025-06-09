@@ -3,8 +3,8 @@ package listpartitionreassignments_test
 import (
 	"testing"
 
-	"github.com/segmentio/kafka-go/protocol/listpartitionreassignments"
-	"github.com/segmentio/kafka-go/protocol/prototest"
+	"github.com/jessekempf/kafka-go/protocol/listpartitionreassignments"
+	"github.com/jessekempf/kafka-go/protocol/prototest"
 )
 
 const (

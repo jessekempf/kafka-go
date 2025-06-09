@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go/compress"
+	"github.com/jessekempf/kafka-go/compress"
 )
 
 func produceRecords(t *testing.T, n int, addr net.Addr, topic string, compression compress.Codec) []Record {

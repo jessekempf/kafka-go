@@ -3,8 +3,8 @@ package createpartitions_test
 import (
 	"testing"
 
-	"github.com/segmentio/kafka-go/protocol/createpartitions"
-	"github.com/segmentio/kafka-go/protocol/prototest"
+	"github.com/jessekempf/kafka-go/protocol/createpartitions"
+	"github.com/jessekempf/kafka-go/protocol/prototest"
 )
 
 const (

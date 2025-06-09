@@ -3,8 +3,8 @@ package addoffsetstotxn_test
 import (
 	"testing"
 
-	"github.com/segmentio/kafka-go/protocol/addoffsetstotxn"
-	"github.com/segmentio/kafka-go/protocol/prototest"
+	"github.com/jessekempf/kafka-go/protocol/addoffsetstotxn"
+	"github.com/jessekempf/kafka-go/protocol/prototest"
 )
 
 func TestAddOffsetsToTxnRequest(t *testing.T) {

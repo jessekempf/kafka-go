@@ -3,8 +3,8 @@ package deletegroups_test
 import (
 	"testing"
 
-	"github.com/segmentio/kafka-go/protocol/deletegroups"
-	"github.com/segmentio/kafka-go/protocol/prototest"
+	"github.com/jessekempf/kafka-go/protocol/deletegroups"
+	"github.com/jessekempf/kafka-go/protocol/prototest"
 )
 
 func TestDeleteGroupsRequest(t *testing.T) {

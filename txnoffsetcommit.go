@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/txnoffsetcommit"
+	"github.com/jessekempf/kafka-go/protocol/txnoffsetcommit"
 )
 
 // TxnOffsetCommitRequest represents a request sent to a kafka broker to commit

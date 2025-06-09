@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/endtxn"
+	"github.com/jessekempf/kafka-go/protocol/endtxn"
 )
 
 // EndTxnRequest represets a request sent to a kafka broker to end a transaction.

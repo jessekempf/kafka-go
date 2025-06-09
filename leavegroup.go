@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/leavegroup"
+	"github.com/jessekempf/kafka-go/protocol/leavegroup"
 )
 
 // LeaveGroupRequest is the request structure for the LeaveGroup function.

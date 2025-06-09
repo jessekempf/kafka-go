@@ -13,7 +13,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-	"github.com/segmentio/kafka-go/sasl"
+	"github.com/jessekempf/kafka-go/sasl"
 )
 
 const (

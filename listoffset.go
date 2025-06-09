@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/listoffsets"
+	"github.com/jessekempf/kafka-go/protocol/listoffsets"
 )
 
 // OffsetRequest represents a request to retrieve a single partition offset.

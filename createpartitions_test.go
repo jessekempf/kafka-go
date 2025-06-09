@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	ktesting "github.com/segmentio/kafka-go/testing"
+	ktesting "github.com/jessekempf/kafka-go/testing"
 )
 
 func TestClientCreatePartitions(t *testing.T) {

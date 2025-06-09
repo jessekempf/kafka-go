@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/offsetdelete"
+	"github.com/jessekempf/kafka-go/protocol/offsetdelete"
 )
 
 // OffsetDelete deletes the offset for a consumer group on a particular topic

@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/addpartitionstotxn"
+	"github.com/jessekempf/kafka-go/protocol/addpartitionstotxn"
 )
 
 // AddPartitionToTxn represents a partition to be added

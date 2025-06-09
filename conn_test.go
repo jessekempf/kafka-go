@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/net/nettest"
 
-	ktesting "github.com/segmentio/kafka-go/testing"
+	ktesting "github.com/jessekempf/kafka-go/testing"
 )
 
 type timeout struct{}

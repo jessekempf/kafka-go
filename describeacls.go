@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/describeacls"
+	"github.com/jessekempf/kafka-go/protocol/describeacls"
 )
 
 // DescribeACLsRequest represents a request sent to a kafka broker to describe

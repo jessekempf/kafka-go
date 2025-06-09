@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/createacls"
+	"github.com/jessekempf/kafka-go/protocol/createacls"
 )
 
 // CreateACLsRequest represents a request sent to a kafka broker to add

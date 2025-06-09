@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/segmentio/kafka-go/protocol/listpartitionreassignments"
+	"github.com/jessekempf/kafka-go/protocol/listpartitionreassignments"
 )
 
 // ListPartitionReassignmentsRequest is a request to the ListPartitionReassignments API.

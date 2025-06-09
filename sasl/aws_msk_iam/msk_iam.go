@@ -12,7 +12,7 @@ import (
 	"time"
 
 	sigv4 "github.com/aws/aws-sdk-go/aws/signer/v4"
-	"github.com/segmentio/kafka-go/sasl"
+	"github.com/jessekempf/kafka-go/sasl"
 )
 
 const (
@@ -49,19 +49,20 @@ func (m *Mechanism) Name() string {
 
 // Start produces the authentication values required for AWS_MSK_IAM. It produces the following json as a byte array,
 // making use of the aws-sdk to produce the signed output.
-// 	{
-// 	  "version" : "2020_10_22",
-// 	  "host" : "<broker host>",
-// 	  "user-agent": "<user agent string from the client>",
-// 	  "action": "kafka-cluster:Connect",
-// 	  "x-amz-algorithm" : "<algorithm>",
-// 	  "x-amz-credential" : "<clientAWSAccessKeyID>/<date in yyyyMMdd format>/<region>/kafka-cluster/aws4_request",
-// 	  "x-amz-date" : "<timestamp in yyyyMMdd'T'HHmmss'Z' format>",
-// 	  "x-amz-security-token" : "<clientAWSSessionToken if any>",
-// 	  "x-amz-signedheaders" : "host",
-// 	  "x-amz-expires" : "<expiration in seconds>",
-// 	  "x-amz-signature" : "<AWS SigV4 signature computed by the client>"
-// 	}
+//
+//	{
+//	  "version" : "2020_10_22",
+//	  "host" : "<broker host>",
+//	  "user-agent": "<user agent string from the client>",
+//	  "action": "kafka-cluster:Connect",
+//	  "x-amz-algorithm" : "<algorithm>",
+//	  "x-amz-credential" : "<clientAWSAccessKeyID>/<date in yyyyMMdd format>/<region>/kafka-cluster/aws4_request",
+//	  "x-amz-date" : "<timestamp in yyyyMMdd'T'HHmmss'Z' format>",
+//	  "x-amz-security-token" : "<clientAWSSessionToken if any>",
+//	  "x-amz-signedheaders" : "host",
+//	  "x-amz-expires" : "<expiration in seconds>",
+//	  "x-amz-signature" : "<AWS SigV4 signature computed by the client>"
+//	}
 func (m *Mechanism) Start(ctx context.Context) (sess sasl.StateMachine, ir []byte, err error) {
 	saslMeta := sasl.MetadataFromContext(ctx)
 	if saslMeta == nil {
